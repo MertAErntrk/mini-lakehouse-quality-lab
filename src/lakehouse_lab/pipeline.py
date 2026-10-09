@@ -37,7 +37,11 @@ def _validate(row: dict[str, str | None], duplicate_ids: set[str]) -> tuple[str 
         return "invalid_timestamp", None
     if timestamp.tzinfo is None:
         return "timestamp_requires_timezone", None
-    return None, (order_id, customer_id, amount, status, timestamp.astimezone(timezone.utc))
+    try:
+        utc_timestamp = timestamp.astimezone(timezone.utc)
+    except OverflowError:
+        return "invalid_timestamp", None
+    return None, (order_id, customer_id, amount, status, utc_timestamp)
 
 
 def _schema(conn: duckdb.DuckDBPyConnection) -> None:
