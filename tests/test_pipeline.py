@@ -1,4 +1,7 @@
 import csv
+import json
+import subprocess
+import sys
 
 import duckdb
 import pytest
@@ -71,3 +74,18 @@ def test_short_row_is_quarantined(tmp_path):
     result = ingest(source, tmp_path / "build")
     assert result["accepted_rows"] == 0
     assert result["rejected_rows"] == 1
+
+
+def test_cli_can_fail_a_quality_gate_after_export(tmp_path):
+    source = tmp_path / "orders.csv"
+    output = tmp_path / "build"
+    write_csv(source, [("O-1", "C-1", "-1", "paid", "2026-10-01T00:00:00+00:00")])
+    run = subprocess.run(
+        [sys.executable, "-m", "lakehouse_lab", str(source), "--output", str(output), "--fail-on-rejected"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert run.returncode == 1
+    assert json.loads(run.stdout)["rejected_rows"] == 1
+    assert (output / "quarantine.parquet").exists()
