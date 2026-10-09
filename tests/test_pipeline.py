@@ -65,6 +65,28 @@ def test_timestamp_must_be_timezone_aware(tmp_path):
     assert result["rejected_rows"] == 1
 
 
+def test_timestamp_outside_utc_range_is_quarantined(tmp_path):
+    source = tmp_path / "orders.csv"
+    output = tmp_path / "build"
+    write_csv(source, [
+        ("O-1", "C-1", "10", "paid", "0001-01-01T00:00:00+01:00"),
+        ("O-2", "C-2", "20", "paid", "2026-10-01T00:00:00+00:00"),
+    ])
+
+    result = ingest(source, output)
+
+    assert result["accepted_rows"] == 1
+    assert result["rejected_rows"] == 1
+    conn = duckdb.connect(str(output / "state.duckdb"), read_only=True)
+    try:
+        assert conn.execute("SELECT order_id, error FROM bronze_events ORDER BY line_number").fetchall() == [
+            ("O-1", "invalid_timestamp"), ("O-2", None)
+        ]
+        assert conn.execute("SELECT order_id FROM silver_orders").fetchall() == [("O-2",)]
+    finally:
+        conn.close()
+
+
 def test_short_row_is_quarantined(tmp_path):
     source = tmp_path / "short.csv"
     source.write_text(
