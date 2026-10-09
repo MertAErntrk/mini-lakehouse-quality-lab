@@ -19,6 +19,8 @@ python -m pytest -q
 
 Running the same file again reports `skipped_existing_file: true`. Inspect the outputs with DuckDB:
 
+For a CI quality gate, add `--fail-on-rejected`. The command still writes the quarantine output and JSON report, then exits with status 1 when any rows were rejected. The supplied first batch intentionally contains a bad row, so it is useful for demonstrating this failure mode.
+
 ```sql
 SELECT * FROM read_parquet('build/bronze.parquet');
 SELECT * FROM read_parquet('build/quarantine.parquet');
