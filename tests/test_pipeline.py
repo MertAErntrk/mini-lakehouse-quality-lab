@@ -57,6 +57,18 @@ def test_bad_header_does_not_create_state(tmp_path):
     assert not (tmp_path / "build").exists()
 
 
+def test_unclosed_quote_does_not_create_state(tmp_path):
+    source = tmp_path / "malformed.csv"
+    source.write_text(
+        'order_id,customer_id,amount,status,updated_at\n'
+        'O-1,C-1,"10,paid,2026-10-01T00:00:00+00:00\n',
+        encoding="utf-8",
+    )
+    with pytest.raises(ValueError, match="Malformed CSV"):
+        ingest(source, tmp_path / "build")
+    assert not (tmp_path / "build").exists()
+
+
 def test_timestamp_must_be_timezone_aware(tmp_path):
     source = tmp_path / "naive.csv"
     write_csv(source, [("O-1", "C-1", "10", "paid", "2026-10-01T00:00:00")])

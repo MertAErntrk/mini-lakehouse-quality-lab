@@ -34,6 +34,8 @@ Expected after both sample batches: 7 Bronze events; 1 quarantined negative amou
 
 The input columns must be `order_id,customer_id,amount,status,updated_at` in that order. IDs must be present. An order ID repeated within one batch is quarantined in all its rows. Amount must be nonnegative with at most two decimal places. Status must be `paid` or `refunded`. Timestamp must include a time zone. For the same order ID across batches, only a strictly newer timestamp updates Silver. A byte-identical file is ingested once using its SHA-256 hash.
 
+Malformed CSV quoting stops ingestion before any state is written. Rows with the right CSV structure but invalid values remain visible in quarantine.
+
 `bronze.parquet` retains the raw strings and an error code for each bad row. `quarantine.parquet` contains only bad rows. `silver.parquet` contains the latest accepted record for each order ID. `gold.parquet` summarizes current orders by status. The included tests cover replay, stale updates, duplicate IDs, rejected values, and missing time zones.
 
 ## Limits

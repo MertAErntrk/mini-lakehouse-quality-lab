@@ -94,10 +94,13 @@ def ingest(source: Path, output: Path) -> dict[str, int | bool | str]:
     output = output.resolve()
     file_sha = hashlib.sha256(source.read_bytes()).hexdigest()
     with source.open("r", newline="", encoding="utf-8-sig") as handle:
-        reader = csv.DictReader(handle)
-        if reader.fieldnames is None or tuple(reader.fieldnames) != FIELDS:
-            raise ValueError(f"Expected CSV columns in this order: {', '.join(FIELDS)}")
-        rows = list(reader)
+        try:
+            reader = csv.DictReader(handle, strict=True)
+            if reader.fieldnames is None or tuple(reader.fieldnames) != FIELDS:
+                raise ValueError(f"Expected CSV columns in this order: {', '.join(FIELDS)}")
+            rows = list(reader)
+        except csv.Error as exc:
+            raise ValueError(f"Malformed CSV: {exc}") from exc
     if any(None in row for row in rows):
         raise ValueError("A row has more fields than the CSV header")
     ids = Counter((row["order_id"] or "").strip() for row in rows)
