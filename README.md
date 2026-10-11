@@ -36,6 +36,8 @@ The input columns must be `order_id,customer_id,amount,status,updated_at` in tha
 
 Malformed CSV quoting stops ingestion before any state is written. Rows with the right CSV structure but invalid values remain visible in quarantine.
 
+Each input is read once into a byte snapshot. Hashing and CSV parsing use that same snapshot, so a source file changed during ingestion cannot associate one file's hash with another file's rows.
+
 `bronze.parquet` retains the raw strings and an error code for each bad row. `quarantine.parquet` contains only bad rows. `silver.parquet` contains the latest accepted record for each order ID. `gold.parquet` summarizes current orders by status. The included tests cover replay, stale updates, duplicate IDs, rejected values, and missing time zones.
 
 ## Limits

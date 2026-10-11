@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import csv
 import hashlib
+import io
 from collections import Counter
 from datetime import datetime, timezone
 from decimal import Decimal, InvalidOperation
@@ -92,8 +93,9 @@ def ingest(source: Path, output: Path) -> dict[str, int | bool | str]:
     """Ingest a CSV once by content hash; keep bad rows visible in quarantine."""
     source = source.resolve()
     output = output.resolve()
-    file_sha = hashlib.sha256(source.read_bytes()).hexdigest()
-    with source.open("r", newline="", encoding="utf-8-sig") as handle:
+    source_bytes = source.read_bytes()
+    file_sha = hashlib.sha256(source_bytes).hexdigest()
+    with io.TextIOWrapper(io.BytesIO(source_bytes), newline="", encoding="utf-8-sig") as handle:
         try:
             reader = csv.DictReader(handle, strict=True)
             if reader.fieldnames is None or tuple(reader.fieldnames) != FIELDS:
