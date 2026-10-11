@@ -2,6 +2,7 @@ import csv
 import json
 import subprocess
 import sys
+from pathlib import Path
 
 import duckdb
 import pytest
@@ -45,6 +46,36 @@ def test_replay_upsert_and_quarantine(tmp_path):
         assert conn.execute("SELECT status, order_count, total_amount FROM read_parquet(?) ORDER BY status", [str(output / "gold.parquet")]).fetchall() == [
             ("paid", 2, 20), ("refunded", 1, 20)
         ]
+    finally:
+        conn.close()
+
+
+def test_changed_source_during_read_keeps_hash_and_ingested_rows_together(tmp_path, monkeypatch):
+    source = tmp_path / "orders.csv"
+    output = tmp_path / "build"
+    write_csv(source, [("O-1", "C-1", "10", "paid", "2026-10-01T00:00:00+00:00")])
+    original_read_bytes = Path.read_bytes
+
+    def read_then_change_file(path):
+        content = original_read_bytes(path)
+        if path == source:
+            write_csv(source, [("O-1", "C-1", "20", "paid", "2026-10-02T00:00:00+00:00")])
+        return content
+
+    monkeypatch.setattr(Path, "read_bytes", read_then_change_file)
+    ingest(source, output)
+    monkeypatch.undo()
+
+    conn = duckdb.connect(str(output / "state.duckdb"), read_only=True)
+    try:
+        assert conn.execute("SELECT amount FROM silver_orders WHERE order_id='O-1'").fetchone()[0] == 10
+    finally:
+        conn.close()
+
+    assert ingest(source, output)["skipped_existing_file"] is False
+    conn = duckdb.connect(str(output / "state.duckdb"), read_only=True)
+    try:
+        assert conn.execute("SELECT amount FROM silver_orders WHERE order_id='O-1'").fetchone()[0] == 20
     finally:
         conn.close()
 
