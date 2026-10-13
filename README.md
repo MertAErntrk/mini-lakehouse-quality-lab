@@ -38,7 +38,7 @@ Malformed CSV quoting stops ingestion before any state is written. Rows with the
 
 Each input is read once into a byte snapshot. Hashing and CSV parsing use that same snapshot, so a source file changed during ingestion cannot associate one file's hash with another file's rows.
 
-`bronze.parquet` retains the raw strings and an error code for each bad row. `quarantine.parquet` contains only bad rows. `silver.parquet` contains the latest accepted record for each order ID. `gold.parquet` summarizes current orders by status. The included tests cover replay, stale updates, duplicate IDs, rejected values, and missing time zones.
+`bronze.parquet` retains the raw strings and an error code for each bad row. Its `line_number` is the physical CSV line where the record ends, including records with quoted newlines or blank lines between records. `quarantine.parquet` contains only bad rows. `silver.parquet` contains the latest accepted record for each order ID. `gold.parquet` summarizes current orders by status. The included tests cover replay, stale updates, duplicate IDs, rejected values, and missing time zones.
 
 ## Limits
 

@@ -100,15 +100,16 @@ def ingest(source: Path, output: Path) -> dict[str, int | bool | str]:
             reader = csv.DictReader(handle, strict=True)
             if reader.fieldnames is None or tuple(reader.fieldnames) != FIELDS:
                 raise ValueError(f"Expected CSV columns in this order: {', '.join(FIELDS)}")
-            rows = list(reader)
+            rows_with_lines = [(reader.line_num, row) for row in reader]
         except csv.Error as exc:
             raise ValueError(f"Malformed CSV: {exc}") from exc
+    rows = [row for _, row in rows_with_lines]
     if any(None in row for row in rows):
         raise ValueError("A row has more fields than the CSV header")
     ids = Counter((row["order_id"] or "").strip() for row in rows)
     duplicate_ids = {order_id for order_id, count in ids.items() if order_id and count > 1}
-    checked = [(_validate(row, duplicate_ids), row) for row in rows]
-    accepted = [parsed for (error, parsed), _ in checked if error is None]
+    checked = [(line_number, _validate(row, duplicate_ids), row) for line_number, row in rows_with_lines]
+    accepted = [parsed for _, (error, parsed), _ in checked if error is None]
     rejected = len(rows) - len(accepted)
 
     output.mkdir(parents=True, exist_ok=True)
@@ -129,7 +130,7 @@ def ingest(source: Path, output: Path) -> dict[str, int | bool | str]:
                         "INSERT INTO bronze_events VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
                         [
                             (file_sha, line_number, *(row[field] for field in FIELDS), error)
-                            for line_number, ((error, _), row) in enumerate(checked, start=2)
+                            for line_number, (error, _), row in checked
                         ],
                     )
                 conn.execute("""

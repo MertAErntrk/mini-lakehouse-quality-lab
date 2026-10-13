@@ -141,6 +141,33 @@ def test_short_row_is_quarantined(tmp_path):
     assert result["rejected_rows"] == 1
 
 
+def test_bronze_line_numbers_follow_physical_csv_lines(tmp_path):
+    source = tmp_path / "multiline.csv"
+    output = tmp_path / "build"
+    source.write_text(
+        "order_id,customer_id,amount,status,updated_at\n"
+        'O-1,C-1,"10\n",paid,2026-10-01T00:00:00+00:00\n'
+        "\n"
+        "O-2,C-2,-1,paid,2026-10-01T00:00:00+00:00\n",
+        encoding="utf-8",
+    )
+
+    result = ingest(source, output)
+
+    assert result["accepted_rows"] == 1
+    assert result["rejected_rows"] == 1
+    conn = duckdb.connect(str(output / "state.duckdb"), read_only=True)
+    try:
+        assert conn.execute(
+            "SELECT order_id, line_number, error FROM bronze_events ORDER BY line_number"
+        ).fetchall() == [
+            ("O-1", 3, None),
+            ("O-2", 5, "invalid_amount"),
+        ]
+    finally:
+        conn.close()
+
+
 def test_cli_can_fail_a_quality_gate_after_export(tmp_path):
     source = tmp_path / "orders.csv"
     output = tmp_path / "build"
